@@ -13,6 +13,9 @@ import Visits from './pages/visits/Visits'
 import NewVisit from './pages/visits/NewVisit'
 import VisitDetail from './pages/visits/VisitDetail'
 import Staff from './pages/staffs/Staff'
+import Ward from './pages/wards/Ward'
+import BedMap from './pages/wards/BedMap'
+import BedAssignment from './pages/wards/BedAssignment'
 
 function ComingSoon({ name }) {
   return (
@@ -39,6 +42,8 @@ export default function App() {
           <Route path="/patients/:id" element={<ProtectedRoute><AppShell><PatientDetail /></AppShell></ProtectedRoute>} />
           <Route path="/appointments" element={<ProtectedRoute><AppShell><ComingSoon name="Appointments" /></AppShell></ProtectedRoute>} />
           <Route path="/staff"        element={<ProtectedRoute><AppShell><Staff /></AppShell></ProtectedRoute>} />
+          <Route path="/wards"         element={<ProtectedRoute><AppShell><Ward /></AppShell></ProtectedRoute>} />
+          <Route path="/wards/:id" element={<ProtectedRoute><AppShell><BedMap /></AppShell></ProtectedRoute>} />
           <Route path="/billing"      element={<ProtectedRoute><AppShell><ComingSoon name="Billing" /></AppShell></ProtectedRoute>} />
           <Route path="/hmo"          element={<ProtectedRoute><AppShell><ComingSoon name="HMO" /></AppShell></ProtectedRoute>} />
           <Route path="/pharmacy"     element={<ProtectedRoute><AppShell><ComingSoon name="Pharmacy" /></AppShell></ProtectedRoute>} />

@@ -7,8 +7,9 @@ import './AppShell.css'
 const NAV_ITEMS = [
   { to: '/dashboard',    icon: '⊞',  label: 'Dashboard'    },
   { to: '/patients',     icon: '👤',  label: 'Patients'     },
-  { to: '/visits',       icon: '🏥',  label: 'Visits'       },  // ← add this
+  { to: '/visits',       icon: '🏥',  label: 'Visits'       }, // ← add this
   { to: '/appointments', icon: '📅',  label: 'Appointments' },
+  {to:'/wards',           icon: '👥',  label:'Wards'         },
   { to: '/staff',        icon: '👥',  label: 'Staff'        },
   { to: '/billing',      icon: '₦',   label: 'Billing'      },
   { to: '/hmo',          icon: '🏛',  label: 'HMO'          },

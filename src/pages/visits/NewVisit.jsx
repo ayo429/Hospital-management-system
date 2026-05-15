@@ -1,8 +1,9 @@
-// src/pages/NewVisit.jsx
+// src/pages/visits/NewVisit.jsx
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
+import BedAssignment from "../wards/BedAssignment";
 
 export default function NewVisit() {
   const { orgId, profile } = useAuth();
@@ -11,29 +12,30 @@ export default function NewVisit() {
   const preselectedPatientId = searchParams.get("patient");
 
   const [form, setForm] = useState({
-    patient_id: preselectedPatientId ?? "",
-    visit_type_id: "",
-    chief_complaint: "",
-    notes: "",
+    patient_id:          preselectedPatientId ?? "",
+    visit_type_id:       "",
+    chief_complaint:     "",
+    notes:               "",
     attending_doctor_id: "",
   });
 
-  const [patients, setPatients] = useState([]);
-  const [visitTypes, setVisitTypes] = useState([]);
-  const [doctors, setDoctors] = useState([]);
-  const [selectedType, setSelectedType] = useState(null);
-  const [patientSearch, setPatientSearch] = useState("");
-  const [preselectedPatient, setPreselectedPatient] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+  // Bed selection — controlled via BedAssignment in "new" mode
+  const [bedSelection, setBedSelection] = useState(null); // { ward_id, bed_id } | null
 
-  // Fetch visit types and doctors on mount
+  const [patients,           setPatients]           = useState([]);
+  const [visitTypes,         setVisitTypes]         = useState([]);
+  const [doctors,            setDoctors]            = useState([]);
+  const [selectedType,       setSelectedType]       = useState(null);
+  const [patientSearch,      setPatientSearch]      = useState("");
+  const [preselectedPatient, setPreselectedPatient] = useState(null);
+  const [saving,             setSaving]             = useState(false);
+  const [error,              setError]              = useState(null);
+
   useEffect(() => {
     if (!orgId) return;
     fetchInitialData();
   }, [orgId]);
 
-  // Fetch preselected patient name if coming from PatientDetail
   useEffect(() => {
     if (!preselectedPatientId || !orgId) return;
     supabase
@@ -42,18 +44,12 @@ export default function NewVisit() {
       .eq("id", preselectedPatientId)
       .eq("org_id", orgId)
       .single()
-      .then(({ data }) => {
-        if (data) setPreselectedPatient(data);
-      });
+      .then(({ data }) => { if (data) setPreselectedPatient(data); });
   }, [preselectedPatientId, orgId]);
 
-  // Search patients as user types
   useEffect(() => {
     if (!orgId || preselectedPatientId) return;
-    if (!patientSearch.trim()) {
-      setPatients([]);
-      return;
-    }
+    if (!patientSearch.trim()) { setPatients([]); return; }
     const timeout = setTimeout(() => searchPatients(patientSearch), 350);
     return () => clearTimeout(timeout);
   }, [patientSearch, orgId]);
@@ -71,8 +67,8 @@ export default function NewVisit() {
         .eq("org_id", orgId)
         .eq("role", "doctor"),
     ]);
-    setVisitTypes(vt ?? []);
-    setDoctors(docs ?? []);
+    setVisitTypes(vt   ?? []);
+    setDoctors(docs    ?? []);
   }
 
   async function searchPatients(q) {
@@ -87,11 +83,12 @@ export default function NewVisit() {
 
   function handleChange(e) {
     const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
-
+    setForm(f => ({ ...f, [name]: value }));
     if (name === "visit_type_id") {
-      const type = visitTypes.find((t) => t.id === value);
+      const type = visitTypes.find(t => t.id === value);
       setSelectedType(type ?? null);
+      // Clear bed selection if switching to a non-bed type
+      if (!type?.requires_bed) setBedSelection(null);
     }
   }
 
@@ -99,51 +96,49 @@ export default function NewVisit() {
     e.preventDefault();
     setError(null);
 
-    if (!form.patient_id) {
-      setError("Please select a patient.");
-      return;
-    }
-    if (!form.visit_type_id) {
-      setError("Please select a visit type.");
-      return;
-    }
-    if (!form.chief_complaint.trim()) {
-      setError("Chief complaint is required.");
-      return;
+    if (!form.patient_id)            { setError("Please select a patient.");      return; }
+    if (!form.visit_type_id)         { setError("Please select a visit type.");   return; }
+    if (!form.chief_complaint.trim()) { setError("Chief complaint is required."); return; }
+    if (selectedType?.requires_bed && !bedSelection?.bed_id) {
+      setError("This visit type requires a bed. Please select one."); return;
     }
 
     try {
       setSaving(true);
 
-      const standardTypes = [
-        "outpatient",
-        "inpatient",
-        "emergency",
-        "day case",
-        "antenatal",
-      ];
-      const selectedVisitType = visitTypes.find(
-        (t) => t.id === form.visit_type_id,
-      );
+      const standardTypes = ["outpatient", "inpatient", "emergency", "day case", "antenatal"];
+      const selectedVisitType = visitTypes.find(t => t.id === form.visit_type_id);
       const typeName = selectedVisitType?.name?.toLowerCase() ?? "custom";
 
+      // 1. Create visit
       const { data, error: insertError } = await supabase
         .from("visits")
         .insert({
-          org_id: orgId,
-          patient_id: form.patient_id,
-          visit_type_id: form.visit_type_id || null,
-          type: standardTypes.includes(typeName) ? typeName : "custom",
-          chief_complaint: form.chief_complaint.trim(),
-          notes: form.notes.trim() || null,
+          org_id:              orgId,
+          patient_id:          form.patient_id,
+          visit_type_id:       form.visit_type_id || null,
+          type:                standardTypes.includes(typeName) ? typeName : "custom",
+          chief_complaint:     form.chief_complaint.trim(),
+          notes:               form.notes.trim() || null,
           attending_doctor_id: form.attending_doctor_id || null,
-          status: "active",
-          admitted_at: new Date().toISOString(),
+          status:              "active",
+          admitted_at:         new Date().toISOString(),
+          // attach bed + ward if selected
+          bed_id:  bedSelection?.bed_id  || null,
+          ward_id: bedSelection?.ward_id || null,
         })
         .select("id")
         .single();
 
       if (insertError) throw insertError;
+
+      // 2. Mark bed as occupied
+      if (bedSelection?.bed_id) {
+        await supabase
+          .from("beds")
+          .update({ status: "occupied" })
+          .eq("id", bedSelection.bed_id);
+      }
 
       navigate(`/visits/${data.id}`);
     } catch (err) {
@@ -155,37 +150,26 @@ export default function NewVisit() {
 
   return (
     <div>
-      {/* Page header */}
+      {/* ── Page header ── */}
       <div className="page-header">
         <div>
           <h1 className="page-header__title">New Visit</h1>
-          <p className="page-header__subtitle">
-            Admit a patient and start a visit record
-          </p>
+          <p className="page-header__subtitle">Admit a patient and start a visit record</p>
         </div>
-        <button
-          className="btn btn--secondary"
-          onClick={() => navigate("/visits")}
-        >
-          ← Back
-        </button>
+        <button className="btn btn--secondary" onClick={() => navigate("/visits")}>← Back</button>
       </div>
 
       <form onSubmit={handleSubmit}>
         {error && <div className="form-error">{error}</div>}
 
-        {/* Patient selection */}
+        {/* ── Patient selection ── */}
         <div className="form-card">
           <div className="form-card__title">Patient</div>
           {preselectedPatient ? (
             <div className="selected-patient">
               <div className="selected-patient__info">
-                <strong>
-                  {preselectedPatient.first_name} {preselectedPatient.last_name}
-                </strong>
-                <span className="badge badge--gray" style={{ marginLeft: 8 }}>
-                  {preselectedPatient.mrn}
-                </span>
+                <strong>{preselectedPatient.first_name} {preselectedPatient.last_name}</strong>
+                <span className="badge badge--gray" style={{ marginLeft: 8 }}>{preselectedPatient.mrn}</span>
               </div>
               <button
                 type="button"
@@ -193,7 +177,7 @@ export default function NewVisit() {
                 style={{ fontSize: 12, padding: "4px 10px" }}
                 onClick={() => {
                   setPreselectedPatient(null);
-                  setForm((f) => ({ ...f, patient_id: "" }));
+                  setForm(f => ({ ...f, patient_id: "" }));
                   navigate("/visits/new");
                 }}
               >
@@ -207,32 +191,23 @@ export default function NewVisit() {
                 className="input"
                 placeholder="Type name or MRN…"
                 value={patientSearch}
-                onChange={(e) => setPatientSearch(e.target.value)}
+                onChange={e => setPatientSearch(e.target.value)}
               />
               {patients.length > 0 && (
                 <div className="patient-dropdown">
-                  {patients.map((p) => (
+                  {patients.map(p => (
                     <button
                       key={p.id}
                       type="button"
                       className="patient-dropdown__item"
                       onClick={() => {
-                        setForm((f) => ({ ...f, patient_id: p.id }));
-                        setPatientSearch(
-                          `${p.first_name} ${p.last_name} (${p.mrn})`,
-                        );
+                        setForm(f => ({ ...f, patient_id: p.id }));
+                        setPatientSearch(`${p.first_name} ${p.last_name} (${p.mrn})`);
                         setPatients([]);
                       }}
                     >
-                      <strong>
-                        {p.first_name} {p.last_name}
-                      </strong>
-                      <span
-                        className="badge badge--gray"
-                        style={{ marginLeft: 8 }}
-                      >
-                        {p.mrn}
-                      </span>
+                      <strong>{p.first_name} {p.last_name}</strong>
+                      <span className="badge badge--gray" style={{ marginLeft: 8 }}>{p.mrn}</span>
                     </button>
                   ))}
                 </div>
@@ -241,40 +216,26 @@ export default function NewVisit() {
           )}
         </div>
 
-        {/* Visit details */}
+        {/* ── Visit details ── */}
         <div className="form-card">
           <div className="form-card__title">Visit Details</div>
           <div className="form-grid">
             <div className="form-field">
               <label className="form-label">Visit Type *</label>
-              <select
-                className="input"
-                name="visit_type_id"
-                value={form.visit_type_id}
-                onChange={handleChange}
-              >
+              <select className="input" name="visit_type_id" value={form.visit_type_id} onChange={handleChange}>
                 <option value="">Select visit type</option>
-                {visitTypes.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
+                {visitTypes.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
             </div>
 
             <div className="form-field">
               <label className="form-label">Attending Doctor</label>
-              <select
-                className="input"
-                name="attending_doctor_id"
-                value={form.attending_doctor_id}
-                onChange={handleChange}
-              >
+              <select className="input" name="attending_doctor_id" value={form.attending_doctor_id} onChange={handleChange}>
                 <option value="">Not assigned</option>
-                {doctors.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    Dr. {d.first_name} {d.last_name}
-                  </option>
+                {doctors.map(d => (
+                  <option key={d.id} value={d.id}>Dr. {d.first_name} {d.last_name}</option>
                 ))}
               </select>
             </div>
@@ -307,31 +268,45 @@ export default function NewVisit() {
           {selectedType && (
             <div className="visit-flags">
               {selectedType.requires_bed && (
-                <span className="visit-flag visit-flag--blue">
-                  🛏 Requires Bed
-                </span>
+                <span className="visit-flag visit-flag--blue">🛏 Requires Bed</span>
               )}
               {selectedType.requires_lab && (
-                <span className="visit-flag visit-flag--yellow">
-                  🧪 Requires Lab
-                </span>
+                <span className="visit-flag visit-flag--yellow">🧪 Requires Lab</span>
               )}
               {selectedType.requires_hmo && (
-                <span className="visit-flag visit-flag--green">
-                  🏛 Requires HMO
-                </span>
+                <span className="visit-flag visit-flag--green">🏛 Requires HMO</span>
               )}
             </div>
           )}
         </div>
 
-        {/* Submit */}
+        {/* ── Bed selection — shown when visit type requires a bed ── */}
+        {selectedType?.requires_bed && (
+          <div className="form-card">
+            <div className="form-card__title">
+              Bed Assignment
+              <span className="badge badge--blue" style={{ marginLeft: 8, fontWeight: 500 }}>Required</span>
+            </div>
+            <BedAssignment
+              mode="new"
+              value={bedSelection}
+              onChange={setBedSelection}
+            />
+            {/* Confirmation of selection */}
+            {bedSelection?.bed_id && (
+              <div
+                className="visit-flag visit-flag--blue"
+                style={{ marginTop: 16, display: "inline-flex" }}
+              >
+                ✓ Bed selected — will be assigned on admission
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Submit ── */}
         <div className="form-actions">
-          <button
-            type="button"
-            className="btn btn--secondary"
-            onClick={() => navigate("/visits")}
-          >
+          <button type="button" className="btn btn--secondary" onClick={() => navigate("/visits")}>
             Cancel
           </button>
           <button type="submit" className="btn btn--primary" disabled={saving}>
