@@ -3,7 +3,6 @@ import { supabase } from "../lib/supabase";
 
 const AuthContext = createContext(null);
 
-// Moved outside component — retries up to 3 times with backoff
 async function fetchProfile(userId) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -28,17 +27,18 @@ async function fetchProfile(userId) {
 }
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(undefined);
+  const [session, setSession] = useState(null);   // ← null, not undefined
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
+    // Flag so the onAuthStateChange listener knows init() already
+    // handled the initial session — prevents double fetchProfile on load
+    let initDone = false;
 
     async function init() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
 
       if (session?.user) {
@@ -47,40 +47,50 @@ export function AuthProvider({ children }) {
         if (mounted) setProfile(p);
       } else {
         setSession(null);
+        setProfile(null);
       }
-      if (mounted) setLoading(false);
+
+      if (mounted) {
+        setLoading(false);
+        initDone = true; // ← mark init complete AFTER loading is false
+      }
     }
 
     init();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-      console.log("auth event:", event);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return;
+        console.log("auth event:", event);
 
-      if (event === "SIGNED_OUT") {
-        setSession(null);
-        setProfile(null);
-        setLoading(false);
-        return;
-      }
-
-      if (event === "SIGNED_IN") {
-        setSession(session);
-        const p = await fetchProfile(session.user.id);
-        if (mounted) {
-          setProfile(p);
+        if (event === "SIGNED_OUT") {
+          setSession(null);
+          setProfile(null);
           setLoading(false);
+          return;
         }
-        return;
-      }
 
-      // TOKEN_REFRESHED — just update session, don't re-fetch profile
-      if (event === "TOKEN_REFRESHED") {
-        return; // do nothing, session is still valid
+        // Only handle SIGNED_IN if init() has already finished.
+        // If initDone is false, init() is still running and will set
+        // everything correctly — we don't want to race it.
+        if (event === "SIGNED_IN" && initDone) {
+          setSession(session);
+          setLoading(true); // show loading while we fetch the profile
+          const p = await fetchProfile(session.user.id);
+          if (mounted) {
+            setProfile(p);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // TOKEN_REFRESHED — session is still valid, just update it quietly
+        if (event === "TOKEN_REFRESHED" && session) {
+          setSession(session);
+          return;
+        }
       }
-    });
+    );
 
     return () => {
       mounted = false;
@@ -99,14 +109,14 @@ export function AuthProvider({ children }) {
     profile,
     loading,
     signOut,
-    isOwner: profile?.role === "owner",
-    isAdmin: ["owner", "admin"].includes(profile?.role),
-    isDoctor: profile?.role === "doctor",
-    isNurse: profile?.role === "nurse",
+    isOwner:      profile?.role === "owner",
+    isAdmin:      ["owner", "admin"].includes(profile?.role),
+    isDoctor:     profile?.role === "doctor",
+    isNurse:      profile?.role === "nurse",
     isPharmacist: profile?.role === "pharmacist",
     isAccountant: profile?.role === "accountant",
     orgId: profile?.org_id,
-    org: profile?.organisations,
+    org:   profile?.organisations,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
