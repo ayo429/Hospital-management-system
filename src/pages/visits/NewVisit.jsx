@@ -291,6 +291,7 @@ export default function NewVisit() {
               mode="new"
               value={bedSelection}
               onChange={setBedSelection}
+              orgId={orgId}
             />
             {/* Confirmation of selection */}
             {bedSelection?.bed_id && (

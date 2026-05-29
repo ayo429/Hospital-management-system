@@ -4,12 +4,67 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>testapp</title>
+    <title>MedCore HMS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+      #root-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        background: #0f1e3d;
+        z-index: 9999;
+        transition: opacity 0.3s ease;
+      }
+      #root-loader.fade-out {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .loader-icon {
+        font-size: 52px;
+        animation: medcore-pulse 1.4s ease-in-out infinite;
+        transform-origin: center;
+        line-height: 1;
+      }
+      .loader-wordmark {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        color: #ffffff;
+        letter-spacing: -0.3px;
+        opacity: 0;
+        animation: medcore-fade-in 0.5s ease forwards 0.3s;
+      }
+      .loader-sub {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 13px;
+        font-weight: 500;
+        color: #06b6d4;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        opacity: 0;
+        animation: medcore-fade-in 0.5s ease forwards 0.5s;
+      }
+      @keyframes medcore-pulse {
+        0%, 100% { transform: scale(1);   opacity: 1; }
+        50%       { transform: scale(1.2); opacity: 0.75; }
+      }
+      @keyframes medcore-fade-in {
+        to { opacity: 1; }
+      }
+    </style>
   </head>
   <body>
+    <div id="root-loader">
+      <div class="loader-icon">🏥</div>
+      <div class="loader-wordmark">MedCore HMS</div>
+      <div class="loader-sub">Loading…</div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

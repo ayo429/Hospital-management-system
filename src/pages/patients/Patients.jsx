@@ -1,207 +1,131 @@
-// src/pages/Patients.jsx
-import { useEffect, useState } from "react";
+// src/pages/patients/Patients.jsx
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "../../lib/supabase";
-import { useAuth } from "../../context/AuthContext";
+import { usePatients } from "../../hooks/usePatients";
 
 const PAGE_SIZE = 20;
 
+function calculateAge(dob) {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
 export default function Patients() {
-  const { orgId } = useAuth();
   const navigate = useNavigate();
-
-  const [patients, setPatients] = useState([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
-  const [hmoFilter, setHmoFilter] = useState("all");
-  const [hmoPlans, setHmoPlans] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [page,   setPage]   = useState(1);
 
-  // Fetch HMO plans once for the filter dropdown
-  useEffect(() => {
-    if (!orgId) return;
-    supabase
-      .from("hmo_plans")
-      .select("id, name")
-      .eq("org_id", orgId)
-      .then(({ data }) => setHmoPlans(data ?? []));
-  }, [orgId]);
+  // ← One line. Data comes from cache instantly on revisit.
+  const { patients, total, isLoading, isError, error } = usePatients({ search, page, pageSize: PAGE_SIZE });
 
-  // Fetch patients whenever page, search, or filter changes
-  useEffect(() => {
-    if (!orgId) return;
-    fetchPatients();
-  }, [orgId, page, search, hmoFilter]);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  const fetchPatients = async () => {
-    setLoading(true);
-    try {
-      let query = supabase
-        .from("patients")
-        .select(
-          "id, first_name, last_name, phone, gender, dob, mrn, hmo_plan_id, hmo_plans(name), created_at",
-          { count: "exact" }
-        )
-        .eq("org_id", orgId)
-        .order("created_at", { ascending: false })
-        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
-
-      if (search.trim()) {
-        query = query.or(
-          `first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%,mrn.ilike.%${search}%`
-        );
-      }
-
-      if (hmoFilter !== "all") {
-        if (hmoFilter === "none") {
-          query = query.is("hmo_plan_id", null);
-        } else {
-          query = query.eq("hmo_plan_id", hmoFilter);
-        }
-      }
-
-      const { data, count, error } = await query;
-      if (error) throw error;
-      setPatients(data ?? []);
-      setTotalCount(count ?? 0);
-    } catch (err) {
-      console.error("Error fetching patients:", err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-
-  const handleSearchChange = (e) => {
+  function handleSearchChange(e) {
     setSearch(e.target.value);
-    setPage(0); // reset to first page on new search
-  };
-
-  const handleHmoFilterChange = (e) => {
-    setHmoFilter(e.target.value);
-    setPage(0);
-  };
+    setPage(1); // reset to page 1 on new search
+  }
 
   return (
     <div>
-      {/* Page header */}
+      {/* ── Page header ── */}
       <div className="page-header">
         <div>
           <h1 className="page-header__title">Patients</h1>
           <p className="page-header__subtitle">
-            {totalCount.toLocaleString()} total patients
+            {total > 0 ? `${total} patient${total !== 1 ? "s" : ""} registered` : "No patients yet"}
           </p>
         </div>
-        <button
-          className="btn btn--primary"
-          onClick={() => navigate("/patients/new")}
-        >
+        <button className="btn btn--primary" onClick={() => navigate("/patients/new")}>
           + New Patient
         </button>
       </div>
 
-      {/* Filters */}
+      {/* ── Filter bar ── */}
       <div className="filter-bar">
         <input
-          type="text"
           className="input"
-          placeholder="Search by name, phone or MRN…"
+          placeholder="Search by name or MRN…"
           value={search}
           onChange={handleSearchChange}
         />
-        <select
-          className="input"
-          value={hmoFilter}
-          onChange={handleHmoFilterChange}
-        >
-          <option value="all">All HMO</option>
-          <option value="none">No HMO</option>
-          {hmoPlans.map((plan) => (
-            <option key={plan.id} value={plan.id}>
-              {plan.name}
-            </option>
-          ))}
-        </select>
       </div>
 
-      {/* Table */}
-      <div className="card">
-        {loading ? (
-          <div className="empty-state">Loading…</div>
+      {/* ── Error ── */}
+      {isError && (
+        <div className="form-error">{error?.message ?? "Failed to load patients."}</div>
+      )}
+
+      {/* ── Table ── */}
+      <div className="card" style={{ padding: 0 }}>
+        {isLoading && patients.length === 0 ? (
+          <div className="empty-state">Loading patients…</div>
         ) : patients.length === 0 ? (
           <div className="empty-state">
-            No patients found.{" "}
-            <Link to="/patients/new">Register the first one →</Link>
+            {search ? `No patients matching "${search}".` : "No patients registered yet."}
           </div>
         ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>MRN</th>
                 <th>Name</th>
+                <th>MRN</th>
+                <th>Age</th>
                 <th>Gender</th>
                 <th>Phone</th>
-                <th>HMO Plan</th>
-                <th>Registered</th>
-                <th></th>
+                <th>Blood Group</th>
               </tr>
             </thead>
             <tbody>
               {patients.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <span className="badge badge--gray">{p.mrn ?? "—"}</span>
-                  </td>
-                  <td>
-                    <strong>
-                      {p.first_name} {p.last_name}
-                    </strong>
-                  </td>
-                  <td>{p.gender ?? "—"}</td>
-                  <td>{p.phone ?? "—"}</td>
-                  <td>
-                    {p.hmo_plans?.name ? (
-                      <span className="badge badge--blue">
-                        {p.hmo_plans.name}
-                      </span>
-                    ) : (
-                      <span className="badge badge--gray">None</span>
-                    )}
-                  </td>
-                  <td>{formatDate(p.created_at)}</td>
+                <tr
+                  key={p.id}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => navigate(`/patients/${p.id}`)}
+                >
                   <td>
                     <Link
                       to={`/patients/${p.id}`}
-                      className="card__link"
+                      style={{ fontWeight: 600, color: "var(--blue-600)", textDecoration: "none" }}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      View →
+                      {p.first_name} {p.last_name}
                     </Link>
                   </td>
+                  <td>
+                    <span className="badge badge--gray">{p.mrn}</span>
+                  </td>
+                  <td>{calculateAge(p.dob) ?? "—"}</td>
+                  <td style={{ textTransform: "capitalize" }}>{p.gender ?? "—"}</td>
+                  <td>{p.phone ?? "—"}</td>
+                  <td>{p.blood_group ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
 
-        {/* Pagination */}
+        {/* ── Pagination ── */}
         {totalPages > 1 && (
           <div className="pagination">
             <button
               className="btn btn--secondary"
+              disabled={page === 1}
               onClick={() => setPage((p) => p - 1)}
-              disabled={page === 0}
             >
               ← Prev
             </button>
             <span className="pagination__info">
-              Page {page + 1} of {totalPages}
+              Page {page} of {totalPages} · {total} patients
             </span>
             <button
               className="btn btn--secondary"
+              disabled={page === totalPages}
               onClick={() => setPage((p) => p + 1)}
-              disabled={page >= totalPages - 1}
             >
               Next →
             </button>
@@ -210,15 +134,4 @@ export default function Patients() {
       </div>
     </div>
   );
-}
-
-/* ── Helpers ── */
-
-function formatDate(iso) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-NG", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }

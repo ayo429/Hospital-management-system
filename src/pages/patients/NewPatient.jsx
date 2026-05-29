@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
+import { usePatients } from "../../hooks/usePatients";
 
 function getInitials(name) {
   if (!name) return "MCH";
@@ -47,6 +48,7 @@ export default function NewPatient() {
   const [hmoPlans, setHmoPlans] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const { invalidate } = usePatients();
 
   useEffect(() => {
     if (!orgId) return;
@@ -102,6 +104,7 @@ export default function NewPatient() {
 
       if (insertError) throw insertError;
 
+      invalidate();
       navigate(`/patients/${data.id}`);
     } catch (err) {
       setError(err.message);

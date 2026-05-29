@@ -4,7 +4,9 @@ import { supabase } from '../../lib/supabase'
 import '../../styles/Auth.css'
 
 function slugify(str) {
-  return str.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  const base = str.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  const suffix = Math.random().toString(36).slice(2, 7) // e.g. "k3x9p"
+  return `${base}-${suffix}`
 }
 
 export default function Signup() {

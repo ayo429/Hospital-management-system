@@ -5,7 +5,7 @@ import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import BedAssignment from "../wards/BedAssignment";
 
-const BASE_TABS = ["Overview", "Vitals", "Nursing Notes", "Prescriptions", "Lab Orders"];
+const TABS = ["Overview", "Vitals", "Nursing Notes", "Prescriptions", "Lab Orders"];
 const INPATIENT_TYPES = ["inpatient", "emergency", "day case", "antenatal", "custom"];
 
 export default function VisitDetail() {
@@ -54,8 +54,8 @@ export default function VisitDetail() {
             *,
             patients(id, first_name, last_name, mrn, dob, gender, phone, blood_group, hmo_plans(name)),
             profiles:attending_doctor_id(first_name, last_name),
-            wards(name),
-            beds(id, bed_number, status)
+            wards!visits_ward_id_fkey(name),
+            beds!visits_bed_id_fkey(id, bed_number, status)
           `)
           .eq("id", id)
           .eq("org_id", orgId)
@@ -177,14 +177,11 @@ export default function VisitDetail() {
   if (error)   return <div className="form-error">{error}</div>;
   if (!visit)  return <div className="empty-state">Visit not found.</div>;
 
-  const patient        = visit.patients;
-  const age            = patient?.dob ? calculateAge(patient.dob) : null;
-  const isActive       = visit.status === "active";
-  const canManage      = isOwner || isAdmin || isDoctor;
-  const isInpatient    = INPATIENT_TYPES.includes(visit.visit_type ?? visit.type);
-
-  // Build tab list — add "Bed" tab only for inpatient visit types
-  const TABS = isInpatient ? [...BASE_TABS, "Bed"] : BASE_TABS;
+  const patient   = visit.patients;
+  const age       = patient?.dob ? calculateAge(patient.dob) : null;
+  const isActive  = visit.status === "active";
+  const canManage = isOwner || isAdmin || isDoctor;
+  const showBedSection = INPATIENT_TYPES.includes(visit.type);
 
   return (
     <div>
@@ -196,7 +193,7 @@ export default function VisitDetail() {
           </h1>
           <p className="page-header__subtitle">
             <span className="badge badge--gray">{patient?.mrn}</span>
-            <span style={{ marginLeft: 8 }}>Visit · {visit.visit_type ?? visit.type}</span>
+            <span style={{ marginLeft: 8 }}>Visit · {visit.type}</span>
             <span style={{ marginLeft: 8 }}>· Admitted {formatDate(visit.admitted_at)}</span>
           </p>
         </div>
@@ -291,6 +288,19 @@ export default function VisitDetail() {
               </div>
             )}
 
+            {/* ── Bed Assignment ── */}
+            {showBedSection && (
+              <div>
+                <div className="form-card__title" style={{ marginBottom: 12 }}>Bed Assignment</div>
+                <BedAssignment
+                  visitId={id}
+                  mode="existing"
+                  onAssigned={fetchAll}
+                  disabled={!isActive || !canManage}
+                />
+              </div>
+            )}
+
             {/* ── Diagnosis ── */}
             {canManage && (
               <div>
@@ -314,19 +324,6 @@ export default function VisitDetail() {
                 </form>
               </div>
             )}
-          </div>
-        )}
-
-        {/* ── Bed Assignment tab ── */}
-        {activeTab === "Bed" && (
-          <div style={{ padding: 24 }}>
-            <BedAssignment
-              visit={visit}
-              orgId={orgId}
-              isInpatient={isInpatient}
-              readOnly={!isActive || !canManage}
-              onBedChange={fetchAll}
-            />
           </div>
         )}
 
