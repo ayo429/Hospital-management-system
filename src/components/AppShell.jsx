@@ -1,5 +1,5 @@
 // src/components/AppShell.jsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import './AppShell.css'
@@ -7,9 +7,9 @@ import './AppShell.css'
 const NAV_ITEMS = [
   { to: '/dashboard',    icon: '⊞',  label: 'Dashboard'    },
   { to: '/patients',     icon: '👤',  label: 'Patients'     },
-  { to: '/visits',       icon: '🏥',  label: 'Visits'       }, // ← add this
+  { to: '/visits',       icon: '🩺',  label: 'Visits'       },
   { to: '/appointments', icon: '📅',  label: 'Appointments' },
-  {to:'/wards',           icon: '👥',  label:'Wards'         },
+  { to: '/wards',        icon: '🏥',  label: 'Wards'        },
   { to: '/staff',        icon: '👥',  label: 'Staff'        },
   { to: '/billing',      icon: '₦',   label: 'Billing'      },
   { to: '/hmo',          icon: '🏛',  label: 'HMO'          },
@@ -22,8 +22,33 @@ const NAV_ITEMS = [
 export default function AppShell({ children }) {
   const { profile, org, signOut } = useAuth()
   const navigate = useNavigate()
-  const [collapsed, setCollapsed] = useState(false)
-  const [showUserMenu, setShowUserMenu] = useState(false)
+  const [collapsed,     setCollapsed]     = useState(false)
+  const [mobileOpen,    setMobileOpen]    = useState(false)
+  const [showUserMenu,  setShowUserMenu]  = useState(false)
+
+  // Close sidebar when navigating on mobile
+  function handleNavClick() {
+    setMobileOpen(false)
+    setShowUserMenu(false)
+  }
+
+  // Close sidebar on outside click (handled via overlay)
+  // Close user menu when clicking elsewhere
+  useEffect(() => {
+    function handler(e) {
+      if (showUserMenu && !e.target.closest('.sidebar__bottom')) {
+        setShowUserMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showUserMenu])
+
+  // Prevent body scroll when mobile sidebar is open
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [mobileOpen])
 
   async function handleSignOut() {
     await signOut()
@@ -34,7 +59,24 @@ export default function AppShell({ children }) {
     .filter(Boolean).join('').toUpperCase() || '?'
 
   return (
-    <div className={`shell ${collapsed ? 'shell--collapsed' : ''}`}>
+    <div className={`shell ${collapsed ? 'shell--collapsed' : ''} ${mobileOpen ? 'shell--mobile-open' : ''}`}>
+
+      {/* ── Mobile hamburger ── */}
+      <button
+        className="sidebar__hamburger"
+        onClick={() => setMobileOpen(o => !o)}
+        aria-label="Toggle menu"
+      >
+        <span className="sidebar__hamburger-icon">
+          {mobileOpen ? '✕' : '☰'}
+        </span>
+      </button>
+
+      {/* ── Mobile overlay ── */}
+      {mobileOpen && (
+        <div className="sidebar__overlay" onClick={() => setMobileOpen(false)} />
+      )}
+
       {/* ── Sidebar ── */}
       <aside className="sidebar">
         <div className="sidebar__top">
@@ -44,6 +86,7 @@ export default function AppShell({ children }) {
               <span className="sidebar__logo-text">MedCore</span>
             )}
           </div>
+          {/* Collapse button — desktop only */}
           <button
             className="sidebar__collapse-btn"
             onClick={() => setCollapsed(c => !c)}
@@ -65,6 +108,7 @@ export default function AppShell({ children }) {
             <NavLink
               key={to}
               to={to}
+              onClick={handleNavClick}
               className={({ isActive }) =>
                 `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
               }

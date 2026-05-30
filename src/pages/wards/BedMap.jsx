@@ -1,111 +1,103 @@
+// src/pages/wards/BedMap.jsx
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
 const STATUSES = ["available", "occupied", "reserved", "maintenance"];
 
 const STATUS_META = {
-  available: {
-    label: "Available",
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
-    text: "text-emerald-700",
-    dot: "bg-emerald-500",
-    badge: "bg-emerald-100 text-emerald-700",
-  },
-  occupied: {
-    label: "Occupied",
-    bg: "bg-red-50",
-    border: "border-red-200",
-    text: "text-red-700",
-    dot: "bg-red-500",
-    badge: "bg-red-100 text-red-600",
-  },
-  reserved: {
-    label: "Reserved",
-    bg: "bg-blue-50",
-    border: "border-blue-200",
-    text: "text-blue-700",
-    dot: "bg-blue-500",
-    badge: "bg-blue-100 text-blue-700",
-  },
-  maintenance: {
-    label: "Maintenance",
-    bg: "bg-amber-50",
-    border: "border-amber-200",
-    text: "text-amber-700",
-    dot: "bg-amber-400",
-    badge: "bg-amber-100 text-amber-700",
-  },
+  available:   { label: "Available",   bg: "#ecfdf5", border: "#a7f3d0", text: "#065f46", dot: "#10b981" },
+  occupied:    { label: "Occupied",    bg: "#fef2f2", border: "#fecaca", text: "#991b1b", dot: "#ef4444" },
+  reserved:    { label: "Reserved",    bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8", dot: "#3b82f6" },
+  maintenance: { label: "Maintenance", bg: "#fffbeb", border: "#fde68a", text: "#b45309", dot: "#f59e0b" },
 };
+
+// ── Shared modal shell ────────────────────────────────────────────────────────
+
+function ModalShell({ title, onClose, children }) {
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: "#fff", borderRadius: 10, width: "100%", maxWidth: 440, boxShadow: "0 8px 32px rgba(0,0,0,.12)", maxHeight: "90vh", overflowY: "auto" }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid #e2e8f0" }}>
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, color: "#0f172a", margin: 0 }}>{title}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#94a3b8", lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+        <div style={{ padding: 24 }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorBanner({ msg }) {
+  return (
+    <div style={{ marginBottom: 16, padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: 13, color: "#b91c1c" }}>
+      {msg}
+    </div>
+  );
+}
+
+function ModalInput({ label, optional, ...props }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>
+        {label} {optional && <span style={{ fontWeight: 400, color: "#94a3b8" }}>(optional)</span>}
+      </label>
+      <input
+        {...props}
+        style={{
+          width: "100%", padding: "9px 13px",
+          border: "1px solid #e2e8f0", borderRadius: 8,
+          fontSize: 13.5, color: "#0f172a", background: "#fff",
+          outline: "none", boxSizing: "border-box",
+        }}
+        onFocus={e => { e.target.style.borderColor = "#3b82f6"; e.target.style.boxShadow = "0 0 0 3px rgba(59,130,246,.12)"; }}
+        onBlur={e => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; }}
+      />
+    </div>
+  );
+}
 
 // ── Add Bed Modal ─────────────────────────────────────────────────────────────
 
 function AddBedModal({ wardId, onClose, onSaved }) {
-  const { orgId } = useAuth();
-  const [label, setLabel] = useState("");
-  const [notes, setNotes] = useState("");
+  const [label,   setLabel]   = useState("");
+  const [notes,   setNotes]   = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error,   setError]   = useState(null);
 
   async function handleSave() {
-    if (!label.trim()) {
-      setError("Bed label is required.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
+    if (!label.trim()) { setError("Bed label is required."); return; }
+    setLoading(true); setError(null);
     const { error: err } = await supabase.from("beds").insert({
-      ward_id: wardId,
+      ward_id:    wardId,
       bed_number: label.trim(),
-      label: label.trim(),
-      notes: notes.trim() || null,
-      status: "available",
+      label:      label.trim(),
+      notes:      notes.trim() || null,
+      status:     "available",
     });
-    if (err) {
-      setError(err.message);
-      setLoading(false);
-    } else {
-      onSaved?.();
-      onClose();
-    }
+    if (err) { setError(err.message); setLoading(false); }
+    else     { onSaved?.(); onClose(); }
   }
 
   return (
     <ModalShell title="Add bed" onClose={onClose}>
       {error && <ErrorBanner msg={error} />}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[12.5px] font-semibold text-slate-500">
-            Bed label
-          </label>
-          <input
-            className="input-base"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="e.g. Bed 1A, Bed 12, Cot 3"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[12.5px] font-semibold text-slate-500">
-            Notes <span className="font-normal text-slate-400">(optional)</span>
-          </label>
-          <input
-            className="input-base"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="e.g. Near window, oxygen point"
-          />
-        </div>
-      </div>
-      <div className="flex justify-end gap-3 mt-6">
-        <button onClick={onClose} className="btn-secondary">
+      <ModalInput label="Bed label" value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Bed 1A, Bed 12, Cot 3" />
+      <ModalInput label="Notes" optional value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Near window, oxygen point" />
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
+        <button onClick={onClose}
+          style={{ padding: "9px 18px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, cursor: "pointer", background: "#fff", color: "#0f172a", border: "1px solid #e2e8f0" }}>
           Cancel
         </button>
-        <button onClick={handleSave} disabled={loading} className="btn-primary">
+        <button onClick={handleSave} disabled={loading}
+          style={{ padding: "9px 18px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, cursor: "pointer", background: "var(--blue-600)", color: "#fff", border: "none", opacity: loading ? 0.5 : 1 }}>
           {loading ? "Adding…" : "Add bed"}
         </button>
       </div>
@@ -113,13 +105,13 @@ function AddBedModal({ wardId, onClose, onSaved }) {
   );
 }
 
-// ── Bed Detail / Edit Modal ───────────────────────────────────────────────────
+// ── Bed Detail Modal ──────────────────────────────────────────────────────────
 
 function BedModal({ bed, onClose, onSaved, onDeleted }) {
-  const [status, setStatus] = useState(bed.status ?? "available");
-  const [notes, setNotes] = useState(bed.notes ?? "");
+  const [status,  setStatus]  = useState(bed.status ?? "available");
+  const [notes,   setNotes]   = useState(bed.notes  ?? "");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error,   setError]   = useState(null);
   const [confirm, setConfirm] = useState(false);
 
   const patientName = bed.visit?.patient
@@ -127,143 +119,92 @@ function BedModal({ bed, onClose, onSaved, onDeleted }) {
     : null;
 
   async function handleSave() {
-    setLoading(true);
-    setError(null);
-    const { error: err } = await supabase
-      .from("beds")
-      .update({ status, notes: notes.trim() || null })
-      .eq("id", bed.id);
-    if (err) {
-      setError(err.message);
-      setLoading(false);
-    } else {
-      onSaved?.();
-      onClose();
-    }
+    setLoading(true); setError(null);
+    const { error: err } = await supabase.from("beds")
+      .update({ status, notes: notes.trim() || null }).eq("id", bed.id);
+    if (err) { setError(err.message); setLoading(false); }
+    else     { onSaved?.(); onClose(); }
   }
 
   async function handleDelete() {
     setLoading(true);
-    const { error: err } = await supabase
-      .from("beds")
-      .delete()
-      .eq("id", bed.id);
-    if (err) {
-      setError(err.message);
-      setLoading(false);
-    } else {
-      onDeleted?.();
-      onClose();
-    }
+    const { error: err } = await supabase.from("beds").delete().eq("id", bed.id);
+    if (err) { setError(err.message); setLoading(false); }
+    else     { onDeleted?.(); onClose(); }
   }
 
-  const meta = STATUS_META[status] ?? STATUS_META.available;
-
   return (
-    <ModalShell title={`Bed ${bed.label}`} onClose={onClose}>
+    <ModalShell title={`Bed ${bed.label ?? bed.bed_number}`} onClose={onClose}>
       {error && <ErrorBanner msg={error} />}
 
-      {/* Patient info if occupied */}
+      {/* Patient banner */}
       {patientName && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-sm font-bold text-red-700 shrink-0">
-            {patientName
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .slice(0, 2)
-              .toUpperCase()}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca", marginBottom: 20 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#b91c1c", flexShrink: 0 }}>
+            {patientName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
           </div>
           <div>
-            <p className="text-[13px] font-semibold text-slate-800">
-              {patientName}
-            </p>
-            <p className="text-[11.5px] text-slate-500">Currently admitted</p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{patientName}</p>
+            <p style={{ fontSize: 11.5, color: "#64748b" }}>Currently admitted</p>
           </div>
         </div>
       )}
 
-      <div className="flex flex-col gap-4">
-        {/* Status */}
-        <div className="flex flex-col gap-2">
-          <label className="text-[12.5px] font-semibold text-slate-500">
-            Status
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {STATUSES.map((s) => {
-              const m = STATUS_META[s];
-              const active = status === s;
-              return (
-                <button
-                  key={s}
-                  onClick={() => setStatus(s)}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-[13px] font-semibold transition cursor-pointer ${
-                    active
-                      ? `${m.bg} ${m.border} ${m.text}`
-                      : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full shrink-0 ${active ? m.dot : "bg-slate-300"}`}
-                  />
-                  {m.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Notes */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[12.5px] font-semibold text-slate-500">
-            Notes
-          </label>
-          <input
-            className="input-base"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional notes about this bed"
-          />
+      {/* Status picker */}
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "#64748b", marginBottom: 8 }}>Status</label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {STATUSES.map(s => {
+            const m = STATUS_META[s];
+            const active = status === s;
+            return (
+              <button key={s} onClick={() => setStatus(s)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "10px 14px", borderRadius: 8, cursor: "pointer",
+                  fontSize: 13, fontWeight: 600, transition: "all .15s",
+                  background: active ? m.bg : "#f8fafc",
+                  border: `2px solid ${active ? m.border : "#e2e8f0"}`,
+                  color: active ? m.text : "#64748b",
+                }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: active ? m.dot : "#cbd5e1", flexShrink: 0 }} />
+                {m.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-6">
-        {/* Delete */}
+      {/* Notes */}
+      <ModalInput label="Notes" optional value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes about this bed" />
+
+      {/* Footer */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
         {!confirm ? (
-          <button
-            onClick={() => setConfirm(true)}
-            className="text-[12.5px] font-semibold text-red-500 hover:text-red-700 bg-transparent border-none cursor-pointer"
-          >
+          <button onClick={() => setConfirm(true)}
+            style={{ fontSize: 12.5, fontWeight: 600, color: "#ef4444", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
             Delete bed
           </button>
         ) : (
-          <div className="flex items-center gap-2">
-            <span className="text-[12.5px] text-slate-500">Sure?</span>
-            <button
-              onClick={handleDelete}
-              disabled={loading}
-              className="text-[12.5px] font-semibold text-red-600 bg-transparent border-none cursor-pointer"
-            >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12.5, color: "#64748b" }}>Sure?</span>
+            <button onClick={handleDelete} disabled={loading}
+              style={{ fontSize: 12.5, fontWeight: 700, color: "#b91c1c", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
               Yes, delete
             </button>
-            <button
-              onClick={() => setConfirm(false)}
-              className="text-[12.5px] text-slate-400 bg-transparent border-none cursor-pointer"
-            >
+            <button onClick={() => setConfirm(false)}
+              style={{ fontSize: 12.5, color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
               Cancel
             </button>
           </div>
         )}
-
-        <div className="flex gap-3">
-          <button onClick={onClose} className="btn-secondary">
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose}
+            style={{ padding: "9px 18px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, cursor: "pointer", background: "#fff", color: "#0f172a", border: "1px solid #e2e8f0" }}>
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            disabled={loading}
-            className="btn-primary"
-          >
+          <button onClick={handleSave} disabled={loading}
+            style={{ padding: "9px 18px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, cursor: "pointer", background: "var(--blue-600)", color: "#fff", border: "none", opacity: loading ? 0.5 : 1 }}>
             {loading ? "Saving…" : "Save"}
           </button>
         </div>
@@ -272,91 +213,56 @@ function BedModal({ bed, onClose, onSaved, onDeleted }) {
   );
 }
 
-// ── Shared primitives ─────────────────────────────────────────────────────────
-
-function ModalShell({ title, onClose, children }) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.45)" }}
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-[10px] w-full max-w-110 shadow-xl max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
-          <h2
-            style={{ fontFamily: "var(--font-display)" }}
-            className="text-[15px] font-semibold text-slate-900"
-          >
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 text-2xl leading-none bg-transparent border-none cursor-pointer"
-          >
-            ×
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-function ErrorBanner({ msg }) {
-  return (
-    <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-[13px] text-red-700">
-      {msg}
-    </div>
-  );
-}
-
 // ── Bed tile ──────────────────────────────────────────────────────────────────
 
 function BedTile({ bed, onClick }) {
   const meta = STATUS_META[bed.status] ?? STATUS_META.available;
-
   const patientName = bed.visit?.patient
     ? `${bed.visit.patient.first_name ?? ""} ${bed.visit.patient.last_name ?? ""}`.trim()
     : null;
 
+  // support both label and bed_number columns
+  const displayLabel = bed.label ?? bed.bed_number ?? "—";
+
   return (
     <button
       onClick={onClick}
-      className={`group flex flex-col gap-1.5 p-3 rounded-[10px] border-2 text-left transition cursor-pointer hover:-translate-y-0.5 hover:shadow-md ${meta.bg} ${meta.border}`}
+      style={{
+        display: "flex", flexDirection: "column", gap: 8,
+        padding: 14, borderRadius: 10, textAlign: "left",
+        background: meta.bg, border: `2px solid ${meta.border}`,
+        cursor: "pointer", transition: "transform .15s, box-shadow .15s",
+        width: "100%",
+      }}
+      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,.08)"; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
     >
-      {/* Bed icon + label */}
-      <div className="flex items-center justify-between">
-        <span className="text-lg">🛏️</span>
-        <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 20 }}>🛏️</span>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: meta.dot, flexShrink: 0 }} />
       </div>
 
-      <p
-        style={{ fontFamily: "var(--font-display)" }}
-        className={`text-[13px] font-bold leading-tight ${meta.text}`}
-      >
-        {bed.label}
+      <p style={{ fontFamily: "var(--font-display)", fontSize: 13.5, fontWeight: 700, color: meta.text, lineHeight: 1.2 }}>
+        {displayLabel}
       </p>
 
-      {/* Status badge */}
-      <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold ${meta.badge}`}
-      >
+      <span style={{
+        display: "inline-flex", alignItems: "center",
+        padding: "2px 8px", borderRadius: 99,
+        fontSize: 10.5, fontWeight: 600,
+        background: meta.bg, color: meta.text,
+        border: `1px solid ${meta.border}`,
+      }}>
         {meta.label}
       </span>
 
-      {/* Patient name if occupied */}
       {patientName && (
-        <p className="text-[11px] text-slate-600 font-medium truncate mt-0.5">
+        <p style={{ fontSize: 11, color: "#475569", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>
           {patientName}
         </p>
       )}
-
-      {/* Notes */}
-      {bed.notes && !patientName && (
-        <p className="text-[11px] text-slate-400 truncate mt-0.5">
+      {!patientName && bed.notes && (
+        <p style={{ fontSize: 11, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>
           {bed.notes}
         </p>
       )}
@@ -372,202 +278,148 @@ export default function BedMap() {
   const { orgId, isOwner, isAdmin } = useAuth();
   const canManage = isOwner || isAdmin;
 
-  const [ward, setWard] = useState(null);
-  const [beds, setBeds] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [ward,         setWard]         = useState(null);
+  const [beds,         setBeds]         = useState([]);
+  const [loading,      setLoading]      = useState(true);
   const [filterStatus, setFilterStatus] = useState("all");
-  const [showAddBed, setShowAddBed] = useState(false);
-  const [activeBed, setActiveBed] = useState(null);
+  const [showAddBed,   setShowAddBed]   = useState(false);
+  const [activeBed,    setActiveBed]    = useState(null);
 
   async function fetchWardAndBeds() {
     setLoading(true);
-
     const [{ data: wardData }, { data: bedData }] = await Promise.all([
       supabase.from("wards").select("*").eq("id", wardId).single(),
+      // keep original select — only columns that exist in the table
       supabase
         .from("beds")
         .select("id, ward_id, bed_number, label, notes, status, visit_id")
         .eq("ward_id", wardId)
         .order("bed_number"),
     ]);
-
     setWard(wardData ?? null);
-    setBeds(bedData ?? []);
+    setBeds(bedData  ?? []);
     setLoading(false);
   }
 
-  useEffect(() => {
-    if (wardId) fetchWardAndBeds();
-  }, [wardId]);
+  useEffect(() => { if (wardId) fetchWardAndBeds(); }, [wardId]);
 
-  const filtered =
-    filterStatus === "all"
-      ? beds
-      : beds.filter((b) => b.status === filterStatus);
+  const filtered = filterStatus === "all" ? beds : beds.filter(b => b.status === filterStatus);
 
-  // ── Counts ──
   const counts = STATUSES.reduce((acc, s) => {
-    acc[s] = beds.filter((b) => b.status === s).length;
+    acc[s] = beds.filter(b => b.status === s).length;
     return acc;
   }, {});
 
+  const filterItems = [
+    { key: "all", label: "All beds", count: beds.length, dot: null },
+    ...STATUSES.map(s => ({ key: s, label: STATUS_META[s].label, count: counts[s], dot: STATUS_META[s].dot, meta: STATUS_META[s] })),
+  ];
+
   return (
     <>
-      <style>{`
-        .btn-primary  { display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;font-size:13.5px;font-weight:600;cursor:pointer;border:none;background:var(--blue-600);color:#fff;transition:background .15s;white-space:nowrap; }
-        .btn-primary:hover { background:var(--blue-500); }
-        .btn-primary:disabled { opacity:.45;cursor:not-allowed; }
-        .btn-secondary { display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;font-size:13.5px;font-weight:600;cursor:pointer;background:#fff;color:var(--text-primary);border:1px solid var(--border);transition:background .15s;white-space:nowrap; }
-        .btn-secondary:hover { background:var(--bg-page); }
-        .input-base { padding:9px 13px;border:1px solid var(--border);border-radius:8px;font-size:13.5px;color:var(--text-primary);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;width:100%; }
-        .input-base:focus { border-color:var(--blue-400);box-shadow:0 0 0 3px rgba(59,130,246,.15); }
-        .input-base::placeholder { color:var(--text-muted); }
-      `}</style>
-
-      <div className="p-8">
-        {/* ── Back + header ── */}
-        <div className="flex items-start justify-between mb-7">
-          <div>
-            <button
-              onClick={() => navigate("/wards")}
-              className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-slate-700 mb-2 bg-transparent border-none cursor-pointer p-0"
-            >
-              ← Back to Wards
-            </button>
-            <h1
-              style={{ fontFamily: "var(--font-display)" }}
-              className="text-[22px] font-bold text-slate-900 tracking-tight"
-            >
-              {loading ? "Loading…" : (ward?.name ?? "Bed Map")}
-            </h1>
-            {ward && (
-              <p className="text-[14px] text-slate-500 mt-1">
-                {ward.capacity ?? beds.length} beds ·{" "}
-                {ward.type
-                  ? ward.type.charAt(0).toUpperCase() + ward.type.slice(1)
-                  : ""}{" "}
-                ward
-              </p>
-            )}
-          </div>
-          {canManage && (
-            <button className="btn-primary" onClick={() => setShowAddBed(true)}>
-              + Add bed
-            </button>
+      {/* ── Page header ── */}
+      <div className="page-header">
+        <div>
+          <button
+            onClick={() => navigate("/wards")}
+            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 600, color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 8 }}
+            onMouseEnter={e => e.currentTarget.style.color = "#475569"}
+            onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
+          >
+            ← Back to Wards
+          </button>
+          <h1 className="page-header__title">
+            {loading ? "Loading…" : (ward?.name ?? "Bed Map")}
+          </h1>
+          {ward && (
+            <p className="page-header__subtitle">
+              {ward.capacity ?? beds.length} beds · {ward.type ? ward.type.charAt(0).toUpperCase() + ward.type.slice(1) : ""} ward
+            </p>
           )}
         </div>
-
-        {/* ── Status summary strip ── */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          {[
-            { key: "all", label: "All beds", count: beds.length },
-            ...STATUSES.map((s) => ({
-              key: s,
-              label: STATUS_META[s].label,
-              count: counts[s],
-            })),
-          ].map((item) => {
-            const meta = item.key === "all" ? null : STATUS_META[item.key];
-            const active = filterStatus === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => setFilterStatus(item.key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-[13px] font-semibold transition cursor-pointer ${
-                  active
-                    ? meta
-                      ? `${meta.bg} ${meta.border} ${meta.text}`
-                      : "bg-slate-900 border-slate-900 text-white"
-                    : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                }`}
-              >
-                {meta && (
-                  <span
-                    className={`w-2 h-2 rounded-full ${active ? meta.dot : "bg-slate-300"}`}
-                  />
-                )}
-                {item.label}
-                <span
-                  className={`ml-0.5 text-[11px] px-1.5 py-0.5 rounded-full font-bold ${
-                    active && !meta
-                      ? "bg-white/20 text-white"
-                      : active && meta
-                        ? `${meta.badge}`
-                        : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  {item.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ── Bed grid ── */}
-        {loading ? (
-          <div className="py-16 text-center text-[13.5px] text-slate-400">
-            Loading beds…
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-[13.5px] text-slate-400">
-            <p>
-              No beds found
-              {filterStatus !== "all"
-                ? ` with status "${STATUS_META[filterStatus]?.label}"`
-                : ""}
-              .
-            </p>
-            {canManage && beds.length === 0 && (
-              <button
-                className="btn-primary mt-3"
-                onClick={() => setShowAddBed(true)}
-              >
-                Add first bed
-              </button>
-            )}
-          </div>
-        ) : (
-          <div
-            className="grid gap-3"
-            style={{
-              gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
-            }}
+        {canManage && (
+          <button
+            onClick={() => setShowAddBed(true)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, cursor: "pointer", background: "var(--blue-600)", color: "#fff", border: "none" }}
           >
-            {filtered.map((bed) => (
-              <BedTile
-                key={bed.id}
-                bed={bed}
-                onClick={() => setActiveBed(bed)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* ── Legend ── */}
-        {!loading && beds.length > 0 && (
-          <div className="flex flex-wrap gap-4 mt-8 pt-6 border-t border-slate-200">
-            {STATUSES.map((s) => {
-              const m = STATUS_META[s];
-              return (
-                <div key={s} className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${m.dot}`} />
-                  <span className="text-[12px] text-slate-500 font-medium">
-                    {m.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+            + Add bed
+          </button>
         )}
       </div>
 
+      {/* ── Status filter pills ── */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 28 }}>
+        {filterItems.map(item => {
+          const active = filterStatus === item.key;
+          const m = item.meta ?? null;
+          return (
+            <button
+              key={item.key}
+              onClick={() => setFilterStatus(item.key)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                padding: "8px 16px", borderRadius: 8, cursor: "pointer",
+                fontSize: 13, fontWeight: 600, transition: "all .15s",
+                background: active ? (m ? m.bg : "#0f172a") : "#fff",
+                border: `1px solid ${active ? (m ? m.border : "#0f172a") : "#e2e8f0"}`,
+                color: active ? (m ? m.text : "#fff") : "#64748b",
+              }}
+            >
+              {item.dot && (
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: active ? item.dot : "#cbd5e1", flexShrink: 0 }} />
+              )}
+              {item.label}
+              <span style={{
+                fontSize: 11, fontWeight: 700,
+                padding: "1px 6px", borderRadius: 99,
+                background: "rgba(0,0,0,0.08)",
+                color: "inherit",
+              }}>
+                {item.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Bed grid ── */}
+      {loading ? (
+        <div className="empty-state">Loading beds…</div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state">
+          <p>No beds found{filterStatus !== "all" ? ` with status "${STATUS_META[filterStatus]?.label}"` : ""}.</p>
+          {canManage && beds.length === 0 && (
+            <button
+              onClick={() => setShowAddBed(true)}
+              style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, cursor: "pointer", background: "var(--blue-600)", color: "#fff", border: "none" }}
+            >
+              Add first bed
+            </button>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 12 }}>
+          {filtered.map(bed => (
+            <BedTile key={bed.id} bed={bed} onClick={() => setActiveBed(bed)} />
+          ))}
+        </div>
+      )}
+
+      {/* ── Legend ── */}
+      {!loading && beds.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 20, marginTop: 32, paddingTop: 20, borderTop: "1px solid #e2e8f0" }}>
+          {STATUSES.map(s => (
+            <div key={s} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: STATUS_META[s].dot }} />
+              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 500 }}>{STATUS_META[s].label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Modals ── */}
       {showAddBed && (
-        <AddBedModal
-          wardId={wardId}
-          onClose={() => setShowAddBed(false)}
-          onSaved={fetchWardAndBeds}
-        />
+        <AddBedModal wardId={wardId} onClose={() => setShowAddBed(false)} onSaved={fetchWardAndBeds} />
       )}
       {activeBed && (
         <BedModal
